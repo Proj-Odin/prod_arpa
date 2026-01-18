@@ -1,118 +1,245 @@
-# prod_arpa
+# prod_arpa — HDD Burn-In + Monitoring Toolkit (Xubuntu + Checkmk RAW)
 
-chmod +x setup_conky_overlay.sh
-sudo ./setup_conky_overlay.sh
+This repo is a small “burn-in box” toolkit for validating refurbished HDDs before the return window closes.
 
-# Start Conky immediately (without logging out)
-conky -c ~/.config/conky/conky.conf
+It includes **three scripts**:
 
-# Checkmk
-sudo chmod +x /usr/lib/check_mk_agent/local/hdd_burnin_status.sh
+* **`setup.sh`** — one-time (idempotent) machine bootstrap + Checkmk agent/plugin + firewall/SSH
+* **`hdd_validate.sh`** — interactive HDD validation with logging + historical TSV database + real-time status JSON
+* **`setup_conky_overlay.sh`** — desktop overlay (Conky) showing live system + burn-in status
 
-sudo CMK_AGENT_DEB_URL="https://<checkmk-host>/<site>/check_mk/agents/<agent>.deb" \
-     CMK_SERVER_IP="<checkmk-server-ip>" \
-     ./setup.sh
+---
 
+## Quick Start (recommended order)
 
-### 1) `setup.sh` (one-time bootstrap for the burn-in box)
-
-What it does:
-
-* Installs the baseline packages you need (smartmontools, badblocks deps, tmux, ufw, ssh, curl, perl, etc.), **but only if missing**.
-* Sets **SSH to port 1492** (or whatever `SSH_PORT` is) using an sshd drop-in when possible.
-* Configures **UFW firewall** in a *non-destructive* way (does **not** reset rules), and adds:
-
-  * allow SSH on your custom port
-  * allow Checkmk agent port **6556/tcp** (optionally restricted to `CMK_SERVER_IP`)
-* Installs **Checkmk RAW agent (2.3+)** if you provide `CMK_AGENT_DEB_URL`
-* Installs the **smart_posix** agent plugin (async cached every 300s) so Checkmk discovers SMART temp/stats
-* Installs/patches the Checkmk **local check** that reads your burn-in history and ensures **`ABORTED => CRIT`**
-
-When you run it:
-
-* Once per machine (or re-run safely; it checks before changing things)
-
-How you run it:
+### 1) Bootstrap the box (packages, SSH, UFW, Checkmk agent + plugins)
 
 ```bash
+chmod +x setup.sh
 sudo CMK_AGENT_DEB_URL="https://<checkmk-host>/<site>/check_mk/agents/<agent>.deb" \
      CMK_SERVER_IP="<checkmk-server-ip>" \
      ./setup.sh
 ```
 
----
+Notes:
 
-### 2) `hdd_validate.sh` (interactive drive validation + history DB)
+* **`CMK_AGENT_DEB_URL`** is the **agent .deb URL served by your Checkmk server** (from the Checkmk UI).
+* **`CMK_SERVER_IP`** is optional but recommended so UFW only allows port **6556/tcp** from your Checkmk server.
 
-What it does:
+Optional overrides:
 
-* Shows an interactive menu listing all disks (sorted by size) including:
+* `SSH_PORT=1492` (default is 1492)
+* `FORCE_CMK_AGENT=1` to reinstall the agent even if already installed
 
-  * device path, model, serial, and “last run” summary from history
-* Maintains persistent records under:
-
-  * `/var/lib/hdd_burnin/drives.tsv` (registry of seen drives)
-  * `/var/lib/hdd_burnin/runs.tsv` (append-only run results)
-* Writes full logs per run to:
-
-  * `/var/log/hdd_validate_<timestamp>/...`
-
-Phases:
-
-* **Phase 0 (non-destructive)**: SMART triage
-
-  * captures SMART pre/post logs
-  * runs short/conveyance/long tests
-  * marks per-drive outcome PASS/WARN/FAIL
-  * WARN happens if SMART dumps fail (per-drive, fixed for multi-drive)
-* **Phase B (destructive)**: `badblocks -w` surface scan
-
-  * enforces max batch size (your config)
-  * refuses to touch the OS/root disk or mounted disks
-  * monitors temps and aborts if a drive crosses your `MAX_TEMP`
-  * captures SMART pre/post
-  * records PASS/WARN/FAIL in `runs.tsv`
-
-Why it matters:
-
-* It’s your “return-window evidence”: you get logs + a clear PASS/FAIL outcome per serial number.
-
-How you run it:
+Example:
 
 ```bash
+sudo SSH_PORT=1492 FORCE_CMK_AGENT=1 \
+     CMK_AGENT_DEB_URL="https://cmk.local/mysite/check_mk/agents/check-mk-agent_2.3.0pXX_all.deb" \
+     CMK_SERVER_IP="192.168.1.50" \
+     ./setup.sh
+```
+
+---
+
+### 2) Install the desktop overlay (Conky)
+
+```bash
+chmod +x setup_conky_overlay.sh
+sudo ./setup_conky_overlay.sh
+```
+
+Start Conky immediately (no logout needed):
+
+```bash
+conky -c ~/.config/conky/conky.conf
+```
+
+What it shows:
+
+* CPU/RAM/Disk/Network
+* Burn-in status + selected drives (from `/var/lib/hdd_burnin/current_run.json`)
+* Latest log line from the active run summary
+* Per-drive temps for currently selected drives
+
+---
+
+### 3) Run the HDD validation (interactive)
+
+```bash
+chmod +x hdd_validate.sh
 sudo ./hdd_validate.sh
 ```
 
-Then pick drives by number and choose Phase 0 / Phase B / Both.
+You’ll get a menu:
+
+* Phase 0 (non-destructive SMART triage)
+* Phase B (destructive badblocks -w surface scan)
+* Both (Phase 0 then Phase B)
 
 ---
 
-### 3) `setup_conky_overlay.sh` (desktop overlay HUD for Xubuntu)
+## What each script does
 
-What it does:
+## 1) `setup.sh` — bootstrap + Checkmk integration (idempotent)
 
-* Installs **Conky** and optional sensor tooling
-* Runs `sensors-detect` (safe/automatic)
-* Creates a Conky overlay config that sits on your desktop showing:
+### What it does
 
-  * CPU, RAM, disk usage, network rates, and drive temps
-* For drive temps it uses:
+* Installs required packages (only if missing):
+  `smartmontools`, `e2fsprogs`, `tmux`, `ufw`, `openssh-server`, `curl`, `perl`, etc.
+* Configures **SSH** to listen on **port 1492** (or `SSH_PORT`)
+* Configures **UFW** without resetting rules:
 
-  * `smartctl` (best per-drive), optionally with sudo NOPASSWD
-* Adds an **XFCE autostart entry**, so the overlay starts when you log in.
+  * Allows SSH on your custom port
+  * Allows Checkmk agent port **6556/tcp** (optionally restricted to `CMK_SERVER_IP`)
+* Installs **Checkmk RAW agent (2.3+)** if `CMK_AGENT_DEB_URL` is provided
+* Installs the **`smart_posix`** agent plugin (cached/async) so Checkmk discovers SMART services
+* Installs/patches the Checkmk **local check** that reports burn-in outcomes and ensures:
 
-Why it matters:
+  * `ABORTED` → **CRIT** (so it alerts)
 
-* While badblocks is running for days, you can glance at the desktop and see temps/system load instantly.
+### Checkmk local check output
 
-How you run it:
+After `setup.sh`, the agent will expose:
+
+* SMART services from `smart_posix` (temps/stats) after discovery
+* Local services:
+
+  * `HDD_Burnin_CurrentRun` (real-time run status)
+  * `HDD_Burnin_<SERIAL>` (latest result per drive)
+
+---
+
+## 2) `hdd_validate.sh` — interactive burn-in + evidence logs
+
+### What it does
+
+* Builds an inventory of disks sorted by size
+* Shows device + model + serial + last run outcome
+* Creates/maintains persistent history under:
+
+  * `/var/lib/hdd_burnin/drives.tsv` — registry of seen drives
+  * `/var/lib/hdd_burnin/runs.tsv` — append-only run history (audit trail)
+* Writes real-time status to:
+
+  * `/var/lib/hdd_burnin/current_run.json` — used by Conky + Checkmk
+* Writes full run logs to:
+
+  * `/var/log/hdd_validate_<timestamp>/...`
+
+### Phases
+
+#### Phase 0 (non-destructive): SMART triage
+
+* SMART dump pre/post
+* Runs: short + conveyance + long tests
+* Records PASS/WARN/FAIL per drive
+
+  * `WARN` if a SMART dump failed (instead of silently passing)
+
+#### Phase B (destructive): surface scan
+
+* Runs `badblocks -w` (ERASES data)
+* Enforces max batch size (defaults to 4)
+* Refuses OS/root disk and mounted disks
+* Monitors temps and aborts if `MAX_TEMP` exceeded
+* Records PASS/WARN/FAIL per drive
+
+### Why it matters
+
+This produces “return-window evidence”: logs + SMART snapshots + consistent outcomes per serial number.
+
+---
+
+## 3) `setup_conky_overlay.sh` — real-time desktop monitoring (Xubuntu)
+
+### What it does
+
+* Installs Conky + optional sensors
+* Runs `sensors-detect`
+* Writes a Conky config to `~/.config/conky/conky.conf`
+* Adds an XFCE autostart entry so Conky starts on login
+* Shows burn-in status and per-drive temps in real time
+
+---
+
+## Checkmk RAW setup notes (so services appear + alert)
+
+### 1) Add the host in Checkmk
+
+* Create a host for the burn-in box with its IP
+
+### 2) Discovery
+
+* Run **Service discovery** on the host
+* You should see:
+
+  * SMART-related services (from `smart_posix`)
+  * Local services:
+
+    * `HDD_Burnin_CurrentRun`
+    * `HDD_Burnin_<SERIAL>`
+
+### 3) Alerts for ABORTED runs
+
+This repo’s local-check mapping intentionally treats:
+
+* `ABORTED` → **CRIT (2)**
+
+That means:
+
+* If you Ctrl+C or a temp kill triggers, Checkmk will page/alert (by design).
+
+---
+
+## Files & paths
+
+### Logs
+
+* Run logs:
+  `/var/log/hdd_validate_<timestamp>/`
+* Summary file:
+  `/var/log/hdd_validate_<timestamp>/SUMMARY.txt`
+
+### Persistent state
+
+* Drive registry (seen drives):
+  `/var/lib/hdd_burnin/drives.tsv`
+* Run history (append-only):
+  `/var/lib/hdd_burnin/runs.tsv`
+* Real-time status:
+  `/var/lib/hdd_burnin/current_run.json`
+
+---
+
+## Common commands
+
+### Run validation inside tmux
 
 ```bash
-chmod +x setup_conky_overlay.sh
-sudo ./setup_conky_overlay.sh
+tmux new -s burnin
+sudo ./hdd_validate.sh
 ```
 
-Then (optional immediate start):
+Detach:
+
+```bash
+Ctrl+b then d
+```
+
+Reattach:
+
+```bash
+tmux attach -t burnin
+```
+
+### Confirm Checkmk agent output on the burn-in box
+
+```bash
+sudo check_mk_agent | sed -n '/<<<local>>>/,$p'
+```
+
+### Start Conky now
 
 ```bash
 conky -c ~/.config/conky/conky.conf
@@ -120,7 +247,13 @@ conky -c ~/.config/conky/conky.conf
 
 ---
 
-If you want, I can also make them “fit together” even tighter by:
+## Safety reminders
 
-* having `hdd_validate.sh` write a `current_run.json` (selected drives + phase + pids)
-* adding that to Conky + the Checkmk local check so both show “Phase B running on sda/sdb/sdc” in real time.
+* **Phase B is destructive** and will erase data on selected disks.
+* The script refuses to run destructive tests on:
+
+  * the OS/root disk
+  * any disk/partition that is mounted
+* If temps exceed `MAX_TEMP`, the run is marked **ABORTED** and (by design) becomes **CRIT** in Checkmk.
+
+---
