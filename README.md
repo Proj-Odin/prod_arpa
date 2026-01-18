@@ -257,3 +257,10 @@ conky -c ~/.config/conky/conky.conf
 * If temps exceed `MAX_TEMP`, the run is marked **ABORTED** and (by design) becomes **CRIT** in Checkmk.
 
 ---
+One more thing you’ll likely hit
+
+Because Option B uses group permissions, your desktop user won’t see Conky burn-in status until they re-login.
+
+After running setup:
+
+id | grep -q burnin || echo "Log out/in so you actually join the burnin group."
