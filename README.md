@@ -1,5 +1,13 @@
 # prod_arpa — HDD Burn-In + Monitoring Toolkit (Xubuntu + Checkmk RAW)
 
+Detach safely:
+
+Press Ctrl-b then d
+
+Reattach later:
+
+tmux attach -t burnin
+
 This repo is a small “burn-in box” toolkit for validating refurbished HDDs before the return window closes.
 
 It includes **three scripts**:
