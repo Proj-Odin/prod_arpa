@@ -24,7 +24,7 @@ BURNIN_GROUP="${BURNIN_GROUP:-burnin}"
 
 MAX_TEMP="${MAX_TEMP:-45}"          # Celsius emergency stop threshold
 MAX_PHASE0="${MAX_PHASE0:-4}"       # Phase 0 max drives (menu)
-MAX_PHASEB="${MAX_PHASEB:-3}"       # Phase B max drives (destructive)
+MAX_PHASEB="${MAX_PHASEB:-4}"       # Phase B max drives (destructive)
 
 BLOCK_SIZE="${BLOCK_SIZE:-4096}"    # baseline
 SMART_TIMEOUT="${SMART_TIMEOUT:-5}" # seconds for smartctl calls (prevents hangs)
