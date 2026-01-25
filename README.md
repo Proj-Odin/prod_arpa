@@ -273,3 +273,15 @@ After running setup:
 ```bash
 id | grep -q burnin || echo "Log out/in so you actually join the burnin group."
 ```
+
+How to use it
+
+From the directory containing badblocks_state_update.sh:
+```bas
+sudo bash install_badblocks_monitor.sh install --interval 60
+```
+
+Or if the script lives elsewhere:
+```bash
+sudo bash install_badblocks_monitor.sh install --script /path/to/badblocks_state_update.sh --interval 60
+```
