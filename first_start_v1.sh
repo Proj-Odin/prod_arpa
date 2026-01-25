@@ -83,5 +83,25 @@ pacman -S \
   grep \
   procps-ng \
   e2fsprogs
+ FROM debian:bookworm-slim
+
+# Install all dependencies
+RUN apt-get update && apt-get install -y \
+    jq \
+    util-linux \
+    coreutils \
+    gawk \
+    sed \
+    procps \
+    e2fsprogs \
+    systemd \
+    curl \
+    mailutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy script
+COPY badblocks_state_update.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/badblocks_state_update.sh
+    
   COMMENT
   
