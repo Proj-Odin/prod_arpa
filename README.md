@@ -313,3 +313,7 @@ This suite tracks active `badblocks` processes, writes per-drive JSON state, exp
 ```bash
 sudo bash install_badblocks_monitor_holistic.sh install --script ./badblocks_state_update.sh --interval 60
 ```
+To Validate its running:
+```bash
+sudo bash install_badblocks_monitor_holistic.sh status
+```
