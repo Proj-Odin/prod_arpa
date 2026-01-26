@@ -285,3 +285,30 @@ Or if the script lives elsewhere:
 ```bash
 sudo bash install_badblocks_monitor.sh install --script /path/to/badblocks_state_update.sh --interval 60
 ```
+# HDD Burn-in Monitoring Suite (badblocks + orchestrator integration)
+
+This suite tracks active `badblocks` processes, writes per-drive JSON state, exports Prometheus metrics, and (optionally) enriches state with orchestrator context from `/var/lib/hdd_burnin/orchestrator_state.json`.
+
+## Components
+
+- **badblocks_state_update.sh**  
+  Monitor script (runs periodically). Finds `badblocks` PIDs, derives progress from `/proc/<pid>/io`, logs stall/errors, writes JSON state, exports Prometheus metrics.
+
+- **systemd timer “daemon”**  
+  Runs the monitor script every N seconds using a oneshot service + timer.
+
+- **node_exporter textfile collector integration**  
+  Symlinks `metrics.prom` into the node_exporter textfile collector directory, so Prometheus can scrape it via node_exporter.
+
+- **optional orchestrator integration**  
+  If an orchestrator writes `/var/lib/hdd_burnin/orchestrator_state.json`, monitor enriches state with temp + pass/pattern information.
+
+---
+
+## Quick Start
+
+1) Put `badblocks_state_update.sh` and `install_badblocks_monitor_holistic.sh` on the host.
+
+2) Install:
+```bash
+sudo bash install_badblocks_monitor_holistic.sh install --script ./badblocks_state_update.sh --interval 60
