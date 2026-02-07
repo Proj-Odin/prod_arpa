@@ -1,4 +1,4 @@
-his is a sophisticated, "production-grade" Hard Drive Burn-in and Validation Suite designed for a home lab or small production environment.
+This is a sophisticated, "production-grade" Hard Drive Burn-in and Validation Suite designed for a home lab or small production environment.
 
 Based on the files provided, this repository is not just a simple script to wipe disks; it is a decoupled system that separates the execution of tests from the monitoring of those tests, integrating deeply with observability tools like Prometheus, Checkmk, and Conky.
 
