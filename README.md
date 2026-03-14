@@ -1,8 +1,23 @@
 # prod_arpa
 
-HDD burn-in and monitoring toolkit for a Linux validation box.
+HDD burn-in validation, monitoring, and initial system hardening toolkit for a Linux validation box.
 
 This repo now exposes stable entrypoints at the top level and keeps versioned implementations beside them. Use the non-versioned scripts first.
+
+## Why wrappers exist
+
+The non-versioned scripts are small wrappers that call the current versioned implementation.
+
+Example:
+- `hdd_validate.sh` -> runs `hdd_validate_v4.5.sh`
+
+Why this helps:
+- Docs and automation can always use one stable command.
+- We can upgrade from `v4.5` to a later version without forcing everyone to change commands.
+
+Important:
+- You can still run a versioned script directly if you prefer.
+- The wrapper is for consistency and easier upgrades, not a technical requirement.
 
 ## Command cheat sheet
 
