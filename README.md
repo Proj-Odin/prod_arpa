@@ -13,6 +13,8 @@ This repo now exposes stable entrypoints at the top level and keeps versioned im
 - `install_badblocks_monitor.sh` -> basic systemd installer for the monitor
 - `install_badblocks_monitor_holistic.sh` -> fuller installer with node_exporter integration
 - `check_badblocks_deps.sh` -> dependency check for the badblocks monitor path
+- `checkmk_updater.sh` -> standalone updater for the Checkmk burn-in local check
+- `checkmake_updater.sh` -> compatibility alias for `checkmk_updater.sh`
 
 ## Quick start
 
@@ -66,6 +68,13 @@ Status check:
 sudo ./install_badblocks_monitor_holistic.sh status
 ```
 
+### 5. Update Checkmk local check (standalone)
+
+```bash
+chmod +x checkmk_updater.sh
+sudo ./checkmk_updater.sh install
+```
+
 ## What each script manages
 
 ### `setup.sh`
@@ -109,6 +118,7 @@ sudo ./install_badblocks_monitor_holistic.sh status
 |- badblocks_state_update.sh
 |- install_badblocks_monitor.sh
 |- install_badblocks_monitor_holistic.sh
+|- checkmk_updater.sh
 |- *_v*.sh
 |- docs/
 |  \- ARCHITECTURE.md
