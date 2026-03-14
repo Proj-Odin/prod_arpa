@@ -81,6 +81,7 @@ declare -A PH0_PRE_OK
 declare -A PH0_POST_OK
 
 SELECTED=()
+SELECTED_NEW=()
 CURRENT_PHASE="IDLE"
 CURRENT_STATUS="idle"
 PHASE_STARTED_AT=""
@@ -134,7 +135,7 @@ init_db() {
   fi
   if [[ ! -f "$CURRENT_RUN_JSON" ]]; then
     cat > "$CURRENT_RUN_JSON" <<EOF
-{"run_id":"","status":"idle","phase":"IDLE","phase_started_at":"","last_update":"","max_temp_c":0,"block_size":0,"max_phase0":0,"max_phaseb":0,"badblocks_passes":0,"log_dir":"","summary_path":"","drives_text":"","drives_dev_text":"","abort_reason":"","temp_max_c":{}}
+{"run_id":"","status":"idle","phase":"IDLE","phase_started_at":"","last_update":"","max_temp_c":0,"block_size":0,"max_phase0":0,"max_phaseb":0,"badblocks_passes":0,"log_dir":"","summary_path":"","drives_text":"","drives_dev_text":"","new_drives_text":"","new_drives_dev_text":"","new_drives_count":0,"abort_reason":"","temp_max_c":{}}
 EOF
     chown root:"$BURNIN_GROUP" "$CURRENT_RUN_JSON"; chmod 0640 "$CURRENT_RUN_JSON"
   fi
@@ -293,6 +294,11 @@ db_last_run_summary() {
   awk -F'\t' -v sn="$sn" 'NR>1 && $5==sn {last=$3" "$4" "$2} END{if(last!="") print last}' "$RUNS_DB"
 }
 
+db_has_run_for_sn() {
+  local sn="$1"
+  awk -F'\t' -v sn="$sn" 'NR>1 && $5==sn {found=1; exit} END{exit(found?0:1)}' "$RUNS_DB"
+}
+
 db_append_run() {
   local phase="$1" outcome="$2" sn="$3" wwn="$4" model="$5" sizeb="$6"
   local poh="$7" realloc="$8" pending="$9" offline="${10}" crc="${11}" health="${12}"
@@ -347,13 +353,23 @@ current_drives_dev_text() {
   for d in "${SELECTED[@]}"; do out+="$(resolve_dev "$d") "; done
   echo "${out%% }"
 }
+current_new_drives_text() { printf "%s " "${SELECTED_NEW[@]}" | sed 's/ $//'; }
+current_new_drives_dev_text() {
+  local out="" d
+  for d in "${SELECTED_NEW[@]}"; do out+="$(resolve_dev "$d") "; done
+  echo "${out%% }"
+}
+current_new_drives_count() { echo "${#SELECTED_NEW[@]}"; }
 
 write_current_run_json() {
   local status="$1" phase="$2"
   local last_update; last_update="$(ts_now)"
-  local drives_text drives_dev_text
+  local drives_text drives_dev_text new_drives_text new_drives_dev_text new_drives_count
   drives_text="$(current_drives_text)"
   drives_dev_text="$(current_drives_dev_text)"
+  new_drives_text="$(current_new_drives_text)"
+  new_drives_dev_text="$(current_new_drives_dev_text)"
+  new_drives_count="$(current_new_drives_count)"
 
   local temp_entries="" k v first=1 esc_key
   for k in "${!TEMP_MAX[@]}"; do
@@ -383,6 +399,9 @@ write_current_run_json() {
   "summary_path": "$(json_escape "$SUMMARY")",
   "drives_text": "$(json_escape "$drives_text")",
   "drives_dev_text": "$(json_escape "$drives_dev_text")",
+  "new_drives_text": "$(json_escape "$new_drives_text")",
+  "new_drives_dev_text": "$(json_escape "$new_drives_dev_text")",
+  "new_drives_count": ${new_drives_count},
   "abort_reason": "$(json_escape "${ABORT_REASON:-}")",
   "temp_max_c": { ${temp_entries} }
 }
@@ -402,6 +421,7 @@ mark_idle() {
   CURRENT_PHASE="IDLE"
   PHASE_STARTED_AT=""
   SELECTED=()
+  SELECTED_NEW=()
   TEMP_MAX=()
   ABORT_REASON=""
   write_current_run_json "$CURRENT_STATUS" "$CURRENT_PHASE"
@@ -547,6 +567,7 @@ select_drives() {
   local prompt="$1" max_allowed="${2:-0}"
   local input=()
   SELECTED=()
+  SELECTED_NEW=()
 
   echo "$prompt"
   echo "Enter numbers separated by spaces (e.g. 1 3 5). Empty = skip."
@@ -564,6 +585,9 @@ select_drives() {
   for n in "${input[@]}"; do
     [[ "$seen" != *" $n "* ]] && continue
     SELECTED+=("${BYID[$n]}")
+    if ! db_has_run_for_sn "${SERIAL[$n]}"; then
+      SELECTED_NEW+=("${BYID[$n]}")
+    fi
     seen="${seen/ $n / }"
   done
 

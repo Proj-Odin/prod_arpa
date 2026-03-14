@@ -14,6 +14,7 @@ set -euo pipefail
 
 STATE_DIR="${STATE_DIR:-/var/lib/hdd_burnin}"
 RUNS_DB="${RUNS_DB:-$STATE_DIR/runs.tsv}"
+CUR_JSON="${CUR_JSON:-$STATE_DIR/current_run.json}"
 
 # Helper: map outcome to Checkmk state
 state_from_outcome() {
@@ -23,6 +24,18 @@ state_from_outcome() {
     FAIL) echo 2 ;;
     *)    echo 3 ;;
   esac
+}
+
+json_get() {
+  local f="$1" key="$2"
+  [[ -r "$f" ]] || return 1
+  tr -d '\n' < "$f" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p"
+}
+
+json_get_num() {
+  local f="$1" key="$2"
+  [[ -r "$f" ]] || return 1
+  tr -d '\n' < "$f" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p"
 }
 
 # If DB missing, report UNKNOWN once
@@ -63,4 +76,19 @@ if pgrep -x badblocks >/dev/null 2>&1; then
   echo "1 HDD Burnin Running - badblocks currently running | jobs=$(pgrep -xc badblocks)"
 else
   echo "0 HDD Burnin Running - no badblocks running | jobs=0"
+fi
+
+# Optional: explicit signal for newly seen drives under active burn-in run
+if [[ -r "$CUR_JSON" ]]; then
+  status="$(json_get "$CUR_JSON" status || echo "")"
+  phase="$(json_get "$CUR_JSON" phase || echo "")"
+  new_drives="$(json_get "$CUR_JSON" new_drives_dev_text || echo "")"
+  new_count="$(json_get_num "$CUR_JSON" new_drives_count || echo "0")"
+  st=0
+  if [[ "${status:-}" == "running" && "${new_count:-0}" =~ ^[1-9][0-9]*$ ]]; then
+    st=1
+  fi
+  echo "${st} HDD Burnin NewDrives - status=${status:-?} phase=${phase:-?} new_count=${new_count:-0} new_drives='${new_drives:-}'"
+else
+  echo "1 HDD Burnin NewDrives - current_run.json not found at $CUR_JSON"
 fi

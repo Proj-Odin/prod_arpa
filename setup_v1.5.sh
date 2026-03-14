@@ -226,7 +226,7 @@ fi
 
 if [[ ! -f "$CUR_JSON" ]]; then
   cat > "$CUR_JSON" <<EOF
-{"run_id":"","status":"idle","phase":"IDLE","phase_started_at":"","last_update":"","max_temp_c":0,"block_size":0,"log_dir":"","summary_path":"","drives_text":"","drives_dev_text":"","abort_reason":"","temp_max_c":{}}
+{"run_id":"","status":"idle","phase":"IDLE","phase_started_at":"","last_update":"","max_temp_c":0,"block_size":0,"log_dir":"","summary_path":"","drives_text":"","drives_dev_text":"","new_drives_text":"","new_drives_dev_text":"","new_drives_count":0,"abort_reason":"","temp_max_c":{}}
 EOF
   chown root:"$BURNIN_GROUP" "$CUR_JSON"
   chmod 0640 "$CUR_JSON"
@@ -337,7 +337,7 @@ else
   dos2unix "$smart_path" >/dev/null 2>&1 || true
 fi
 
-# ---------------- CHECKMK LOCAL CHECK (CurrentRun + per-drive verdicts) ----------------
+# ---------------- CHECKMK LOCAL CHECK (CurrentRun + NewDrives + per-drive verdicts) ----------------
 lc_dir="/usr/lib/check_mk_agent/local"
 lc_path="${lc_dir}/hdd_burnin_status"
 install -d -m 0755 "$lc_dir"
@@ -366,6 +366,12 @@ json_get() {
   tr -d '\n' < "$f" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p"
 }
 
+json_get_num() {
+  local f="$1" key="$2"
+  [[ -r "$f" ]] || return 1
+  tr -d '\n' < "$f" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p"
+}
+
 # ---- Current run (real-time) ----
 if [[ -r "$CUR" ]]; then
   status="$(json_get "$CUR" status || echo "")"
@@ -375,12 +381,22 @@ if [[ -r "$CUR" ]]; then
   last_update="$(json_get "$CUR" last_update || echo "")"
   abort_reason="$(json_get "$CUR" abort_reason || echo "")"
   summary_path="$(json_get "$CUR" summary_path || echo "")"
+  new_drives="$(json_get "$CUR" new_drives_dev_text || echo "")"
+  new_count="$(json_get_num "$CUR" new_drives_count || echo "0")"
 
   st=0
   [[ "$status" == "aborted" ]] && st=2
   echo "$st HDD_Burnin_CurrentRun - status=${status:-?} phase=${phase:-?} drives='${drives:-}' run_id=${run_id:-?} last_update=${last_update:-?} abort_reason='${abort_reason:-}' summary=${summary_path:-?}"
+
+  new_st=0
+  if [[ "${status:-}" == "running" && "${new_count:-0}" =~ ^[1-9][0-9]*$ ]]; then
+    # WARN while actively burning in never-before-tested drives.
+    new_st=1
+  fi
+  echo "$new_st HDD_Burnin_NewDrives - status=${status:-?} phase=${phase:-?} new_count=${new_count:-0} new_drives='${new_drives:-}' run_id=${run_id:-?} last_update=${last_update:-?}"
 else
   echo "1 HDD_Burnin_CurrentRun - current_run.json missing/unreadable"
+  echo "1 HDD_Burnin_NewDrives - current_run.json missing/unreadable"
 fi
 
 # ---- Per-drive latest verdict ----

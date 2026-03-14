@@ -132,9 +132,11 @@ After setup, discover services on the host. You should see:
 
 - SMART services from `smart_posix`
 - `HDD_Burnin_CurrentRun`
+- `HDD_Burnin_NewDrives`
 - `HDD_Burnin_<SERIAL>`
 
 `ABORTED` burn-in runs are intentionally mapped to `CRIT`.
+`HDD_Burnin_NewDrives` goes `WARN` while a run is actively burning drives with no prior run history.
 
 ## Safety reminders
 
