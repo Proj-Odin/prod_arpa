@@ -4,6 +4,41 @@ HDD burn-in and monitoring toolkit for a Linux validation box.
 
 This repo now exposes stable entrypoints at the top level and keeps versioned implementations beside them. Use the non-versioned scripts first.
 
+## Command cheat sheet
+
+```bash
+# make scripts executable once
+chmod +x setup.sh hdd_validate.sh setup_conky_overlay.sh badblocks_state_update.sh \
+         install_badblocks_monitor_holistic.sh checkmk_updater.sh
+
+# bootstrap host
+sudo CMK_AGENT_DEB_URL="https://<checkmk-host>/<site>/check_mk/agents/<agent>.deb" \
+     CMK_SERVER_IP="<checkmk-server-ip>" \
+     ./setup.sh
+
+# run burn-in inside tmux
+tmux new -s burnin
+sudo ./hdd_validate.sh
+# tmux exit modes (one-liners):
+# Ctrl+b then d            -> detach (session keeps running)
+# exit                     -> close current pane/shell
+# tmux kill-session -t ... -> stop the whole session
+# reattach later:
+tmux attach -t burnin
+# fully end the burnin session from terminal:
+tmux kill-session -t burnin
+# also valid while attached:
+exit
+
+# install badblocks monitoring timer + status
+sudo ./install_badblocks_monitor_holistic.sh install --script ./badblocks_state_update.sh --interval 60
+sudo ./install_badblocks_monitor_holistic.sh status
+
+# standalone Checkmk local-check updater + status
+sudo ./checkmk_updater.sh install
+sudo ./checkmk_updater.sh status
+```
+
 ## Current entrypoints
 
 - `setup.sh` -> system bootstrap, SSH/UFW, Checkmk agent/plugin, and burn-in state permissions
